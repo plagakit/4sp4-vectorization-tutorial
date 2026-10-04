@@ -139,4 +139,18 @@ namespace swiftware::hpp {
       c[i] = a[i] + b[i];
     }
   }
+
+  void vec_sub_avg(const std::vector<float>& a, const std::vector<float>& b, std::vector<float>& c) {
+    int n = a.size();
+    c.resize(n);
+    auto end = n - n % 8;
+    for (int i = 0; i < end; i += 8) {
+      auto va = _mm256_loadu_ps(&a[i]);
+      auto vb = _mm256_loadu_ps(&b[i]);
+      auto vc = _mm256_sub_ps(va, vb);
+      _mm256_storeu_ps(&c[i], vc);
+    }
+    for (int i = end; i < n; i++) { c[i] = a[i] + b[i]; }
+  }
+
 }

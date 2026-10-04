@@ -16,7 +16,7 @@ echo "----- Building -----"
 # Do not change below, it is fixed folder everyone
 SHAREDDIR=/home/coe4sp4/
 
-cmake -S . -B $(pwd)/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=${SHAREDDIR}/libpfm4/ -DPROFILING_ENABLED=ON
+cmake -S . -B $(pwd)/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=${SHAREDDIR}/libpfm4/ -DPROFILING_ENABLED=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 cmake --build $(pwd)/build -- -j8
 make -j8
 
@@ -25,5 +25,11 @@ make -j8
 echo "---- Running ----"
 
 mkdir -p $(pwd)/logs
-$(pwd)/build/vec_add_driver --benchmark_out="$(pwd)/logs/lab02-part1.json" --benchmark_out_format=json
+#$(pwd)/build/vec_add_driver --benchmark_out="$(pwd)/logs/lab02-part1.json" --benchmark_out_format=json
 $(pwd)/build/mat_vec_driver --benchmark_out="$(pwd)/logs/lab02-part2.json" --benchmark_out_format=json
+
+python3 -m venv $(pwd)/venv
+source $(pwd)/venv/bin/activate
+pip install -r $(pwd)/script/requirements.txt
+mkdir -p $(pwd)/plots
+python3 $(pwd)/script/plot.py $(pwd)/logs/lab02-part2.json
