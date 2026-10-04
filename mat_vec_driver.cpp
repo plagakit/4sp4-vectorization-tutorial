@@ -4,7 +4,7 @@
 
 #define M 10000
 #define N 10000
-#define RUNS 50
+#define RUNS 100
 
 #define DEFINE_BENCHMARK(func) \
     static void BM_##func##_(benchmark::State& state) { \

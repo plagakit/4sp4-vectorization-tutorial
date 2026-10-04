@@ -17,6 +17,7 @@ void matmul_inner_unrolled(const float* A, const float* x, float* y, int m, int 
         y[row] = 0.0f;
 
         int rem = n - n % 8;
+        // can't vectorize bc the += is sequential?
         for (int col = 0; col < rem; col += 8) {
             y[row] += rowaddr[col] * x[col];
             y[row] += rowaddr[col+1] * x[col+1];
@@ -32,8 +33,6 @@ void matmul_inner_unrolled(const float* A, const float* x, float* y, int m, int 
         }
     }
 }
-
-
 
 // Inner loop vectorization (SIMD on j loop)
 void matmul_inner_vec(const float* A, const float* x, float* y, int m, int n) {
@@ -157,5 +156,5 @@ void matmul_innervec_outerunrolled(const float* A, const float* x, float* y, int
 
 // 2D vectorization (SIMD on both i and j)
 void matmul_2d_vec(const float* A, const float* x, float* y, int m, int n) {
-  // TODO: Implement 2D vectorization using AVX2  intrinsics
+
 }
