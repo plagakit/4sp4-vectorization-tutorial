@@ -1,6 +1,17 @@
 #include <immintrin.h>
 #include "matrix_vec.h"
 
+#include <vector>
+
+// inline __attribute__((always_inline)) float horzsum256(__m256 s) {
+//     // https://stackoverflow.com/questions/13219146/how-to-sum-m256-horizontally
+//     auto s2 = _mm256_permute2f128_ps(s , s , 1);
+//     s = _mm256_add_ps(s, s2);
+//     s = _mm256_hadd_ps(s, s);
+//     s = _mm256_hadd_ps(s, s);
+//     return _mm_cvtss_f32(_mm256_castps256_ps128(s));
+// }
+
 // Base unvectorized implementation
 void matmul_base(const float* A, const float* x, float* y, int m, int n) {
     for (int i = 0; i < m; i++) {
@@ -49,9 +60,11 @@ void matmul_inner_vec(const float* A, const float* x, float* y, int m, int n) {
         }
 
         // Horizontal sum of 8 elements
-        __m256 t = _mm256_hadd_ps(sum, sum);
-        t = _mm256_hadd_ps(t, t);
-        y[i] = _mm_cvtss_f32(_mm256_castps256_ps128(t));
+        auto s2 = _mm256_permute2f128_ps(sum, sum, 1);
+        sum = _mm256_add_ps(sum, s2);
+        sum = _mm256_hadd_ps(sum, sum);
+        sum = _mm256_hadd_ps(sum, sum);
+        y[i] = _mm_cvtss_f32(_mm256_castps256_ps128(sum));
 
         // Scalar remainder
         for (; j < n; j++) {
@@ -72,9 +85,11 @@ void matmul_inner_alt(const float* A, const float* x, float* y, int m, int n) {
             sum = _mm256_fmadd_ps(a_vec, x_vec, sum);
         }
 
-        __m256 t = _mm256_hadd_ps(sum, sum);
-        t = _mm256_hadd_ps(t, t);
-        y[i] = _mm_cvtss_f32(_mm256_castps256_ps128(t));
+        auto s2 = _mm256_permute2f128_ps(sum, sum, 1);
+        sum = _mm256_add_ps(sum, s2);
+        sum = _mm256_hadd_ps(sum, sum);
+        sum = _mm256_hadd_ps(sum, sum);
+        y[i] = _mm_cvtss_f32(_mm256_castps256_ps128(sum));
 
         for (; j < n; j++) {
             y[i] += A[i * n + j] * x[j];
@@ -107,23 +122,23 @@ void matmul_innervec_outerunrolled(const float* A, const float* x, float* y, int
             s8 = _mm256_fmadd_ps(_mm256_loadu_ps(&A[(row+7)*n+col]), vx, s8);
         }
 
-        __m256 t1 = _mm256_hadd_ps(s1, s1); t1 = _mm256_hadd_ps(t1, t1);
-        __m256 t2 = _mm256_hadd_ps(s2, s2); t2 = _mm256_hadd_ps(t2, t2);
-        __m256 t3 = _mm256_hadd_ps(s3, s3); t3 = _mm256_hadd_ps(t3, t3);
-        __m256 t4 = _mm256_hadd_ps(s4, s4); t4 = _mm256_hadd_ps(t4, t4);
-        __m256 t5 = _mm256_hadd_ps(s5, s5); t5 = _mm256_hadd_ps(t5, t5);
-        __m256 t6 = _mm256_hadd_ps(s6, s6); t6 = _mm256_hadd_ps(t6, t6);
-        __m256 t7 = _mm256_hadd_ps(s7, s7); t7 = _mm256_hadd_ps(t7, t7);
-        __m256 t8 = _mm256_hadd_ps(s8, s8); t8 = _mm256_hadd_ps(t8, t8);
+        auto t1 = _mm256_permute2f128_ps(s1, s1, 1); s1 = _mm256_add_ps(s1, t1); s1 = _mm256_hadd_ps(s1, s1); s1 = _mm256_hadd_ps(s1, s1);
+        auto t2 = _mm256_permute2f128_ps(s2, s2, 1); s2 = _mm256_add_ps(s2, t2); s2 = _mm256_hadd_ps(s2, s2); s2 = _mm256_hadd_ps(s2, s2);
+        auto t3 = _mm256_permute2f128_ps(s3, s3, 1); s3 = _mm256_add_ps(s3, t3); s3 = _mm256_hadd_ps(s3, s3); s3 = _mm256_hadd_ps(s3, s3);
+        auto t4 = _mm256_permute2f128_ps(s4, s4, 1); s4 = _mm256_add_ps(s4, t4); s4 = _mm256_hadd_ps(s4, s4); s4 = _mm256_hadd_ps(s4, s4);
+        auto t5 = _mm256_permute2f128_ps(s5, s5, 1); s5 = _mm256_add_ps(s5, t5); s5 = _mm256_hadd_ps(s5, s5); s5 = _mm256_hadd_ps(s5, s5);
+        auto t6 = _mm256_permute2f128_ps(s6, s6, 1); s6 = _mm256_add_ps(s6, t6); s6 = _mm256_hadd_ps(s6, s6); s6 = _mm256_hadd_ps(s6, s6);
+        auto t7 = _mm256_permute2f128_ps(s7, s7, 1); s7 = _mm256_add_ps(s7, t7); s7 = _mm256_hadd_ps(s7, s7); s7 = _mm256_hadd_ps(s7, s7);
+        auto t8 = _mm256_permute2f128_ps(s8, s8, 1); s8 = _mm256_add_ps(s8, t8); s8 = _mm256_hadd_ps(s8, s8); s8 = _mm256_hadd_ps(s8, s8);
 
-        y[row] = _mm_cvtss_f32(_mm256_castps256_ps128(t1));
-        y[row+1] = _mm_cvtss_f32(_mm256_castps256_ps128(t2));
-        y[row+2] = _mm_cvtss_f32(_mm256_castps256_ps128(t2));
-        y[row+3] = _mm_cvtss_f32(_mm256_castps256_ps128(t2));
-        y[row+4] = _mm_cvtss_f32(_mm256_castps256_ps128(t2));
-        y[row+5] = _mm_cvtss_f32(_mm256_castps256_ps128(t2));
-        y[row+6] = _mm_cvtss_f32(_mm256_castps256_ps128(t2));
-        y[row+7] = _mm_cvtss_f32(_mm256_castps256_ps128(t2));
+        y[row] = _mm_cvtss_f32(_mm256_castps256_ps128(s1));
+        y[row+1] = _mm_cvtss_f32(_mm256_castps256_ps128(s2));
+        y[row+2] = _mm_cvtss_f32(_mm256_castps256_ps128(s3));
+        y[row+3] = _mm_cvtss_f32(_mm256_castps256_ps128(s4));
+        y[row+4] = _mm_cvtss_f32(_mm256_castps256_ps128(s5));
+        y[row+5] = _mm_cvtss_f32(_mm256_castps256_ps128(s6));
+        y[row+6] = _mm_cvtss_f32(_mm256_castps256_ps128(s7));
+        y[row+7] = _mm_cvtss_f32(_mm256_castps256_ps128(s8));
 
         for (; col < n; col++) {
             y[row] += A[row*n+col] * x[col];
@@ -144,17 +159,72 @@ void matmul_innervec_outerunrolled(const float* A, const float* x, float* y, int
             __m256 x_vec = _mm256_loadu_ps(&x[j]);
             sum = _mm256_fmadd_ps(a_vec, x_vec, sum);
         }
-        __m256 t = _mm256_hadd_ps(sum, sum);
-        t = _mm256_hadd_ps(t, t);
-        y[row] += _mm_cvtss_f32(_mm256_castps256_ps128(t));
+        auto s2 = _mm256_permute2f128_ps(sum, sum, 1);
+        sum = _mm256_add_ps(sum, s2);
+        sum = _mm256_hadd_ps(sum, sum);
+        sum = _mm256_hadd_ps(sum, sum);
+        y[row] += _mm_cvtss_f32(_mm256_castps256_ps128(sum));
         for (; j < n; j++) { y[row] += A[row * n + j] * x[j]; }
     }
 }
 
-// maybe could use _mm256_maddubs_epi16 , but doesn't exist for floats
-// _mm256_stream_ps to load by row?
+
+void matmul_vec_outer_vec(const float* A, const float* x, float* y, int m, int n) {
+    // do 8 rows at a time, but each column iteratively
+    int row = 0;
+    for (; row < m - m % 8; row += 8) {   
+        __m256 sum = _mm256_setzero_ps();
+        __m256 vx = _mm256_loadu_ps(&x[row]);
+        __m256i gather_offsets = _mm256_set_epi32(
+            row*n,
+            (row+1)*n,
+            (row+2)*n,
+            (row+3)*n,
+            (row+4)*n,
+            (row+5)*n,
+            (row+6)*n,
+            (row+7)*n
+        );
+
+        for (int col = 0; col < n; col++) {
+
+            __m256i col_idx = _mm256_set1_epi32(col);
+            __m256i idxs = _mm256_add_epi32(col_idx, gather_offsets);
+
+            __m256 va = _mm256_i32gather_ps(A, idxs, sizeof(float));
+            sum = _mm256_fmadd_ps(va, vx, sum);
+        }
+
+        _mm256_storeu_ps(&y[row], sum);
+    }
+
+    // clean up the rest
+    for (int i = row; i < m; i++) {
+        y[i] = 0.0f;
+        for (int j = 0; j < n; j++) {
+            y[i] += A[i * n + j] * x[j];
+        }
+    }
+}
 
 // 2D vectorization (SIMD on both i and j)
 void matmul_2d_vec(const float* A, const float* x, float* y, int m, int n) {
 
 }
+
+
+
+// for j := 0-7
+//     i := j * 32 (0, 32, 64, 96, 128, ...)
+//     m := id_t
+
+//     addr := A + 
+
+//     dst[i+31:i] := MEM[base_addr + SignExtend(vindex[i+31:i])*scale]
+
+// dst[i+31:i] := MEM[base_addr + SignExtend(vindex[i+31:i])*scale]
+
+
+
+
+// _mm256_i32gather_ps(A[i], idx, 8);
