@@ -209,22 +209,142 @@ void matmul_vec_outer_vec(const float* A, const float* x, float* y, int m, int n
 
 // 2D vectorization (SIMD on both i and j)
 void matmul_2d_vec(const float* A, const float* x, float* y, int m, int n) {
+    int row = 0;
+    int rowend = m - m % 8;
+    for (; row < rowend; row += 8) {
+        __m256 s1 = _mm256_setzero_ps();
+        __m256 s2 = _mm256_setzero_ps();
+        __m256 s3 = _mm256_setzero_ps();
+        __m256 s4 = _mm256_setzero_ps();
+        __m256 s5 = _mm256_setzero_ps();
+        __m256 s6 = _mm256_setzero_ps();
+        __m256 s7 = _mm256_setzero_ps();
+        __m256 s8 = _mm256_setzero_ps();
 
+        int col = 0;
+        for (; col <= n - 8; col += 8) {
+            __m256 vx = _mm256_loadu_ps(&x[col]);
+            auto A1 = _mm256_loadu_ps(&A[row*n]+col);
+            auto A2 = _mm256_loadu_ps(&A[(row+1)*n]+col);
+            auto A3 = _mm256_loadu_ps(&A[(row+2)*n]+col);
+            auto A4 = _mm256_loadu_ps(&A[(row+3)*n]+col);
+            auto A5 = _mm256_loadu_ps(&A[(row+4)*n]+col);
+            auto A6 = _mm256_loadu_ps(&A[(row+5)*n]+col);
+            auto A7 = _mm256_loadu_ps(&A[(row+6)*n]+col);
+            auto A8 = _mm256_loadu_ps(&A[(row+7)*n]+col);
+            s1 = _mm256_fmadd_ps(A1, vx, s1);
+            s2 = _mm256_fmadd_ps(A2, vx, s2);
+            s3 = _mm256_fmadd_ps(A3, vx, s3);
+            s4 = _mm256_fmadd_ps(A4, vx, s4);
+            s5 = _mm256_fmadd_ps(A5, vx, s5);
+            s6 = _mm256_fmadd_ps(A6, vx, s6);
+            s7 = _mm256_fmadd_ps(A7, vx, s7);
+            s8 = _mm256_fmadd_ps(A8, vx, s8);
+        }
+
+        /*
+        [a1-8, b1-8, c1-8, d1-8, e1-8, f1-8, g1-8, h1-8] = 
+        hadd(
+            [a1-4, a5-8, b1-4, b5-8, e1-4, e5-8, f1-4, f5-8] = hadd(
+                [a12, a34, a56, a78, e12, e34, e56, e78] = hadd(
+                    [a1, a2, a3, a4, e1, e2, e3, e4]
+                    [a5, a6, a7, a8, e5, e6, e7, e8]
+                )
+                [b12, b34, b56, b67, f12, f34, f56, f78]
+            )
+            [c1-4, c5-8, d1-4, d5-8, g, g, h, h]
+        )
+
+        ^ means we need hi a + low e, seems inefficient to do 8 shuffles
+        lets try working bottom-up:
+
+        hadd([a1, ... , a8], [b1, ... , b8])
+        = [a12, a34, b12, b34, a56, a78, b56, b78]
+        hadd(^, [c12, c34, ... , d56, d78])
+        = [a1234, b1234, c1234, d1234, a5678, ...]
+
+        we want [a, a, b, b, e, e, f, f], lets do e, f instead of c,d
+        so,
+        = shuffle((a + b) + (e + f)) + shuffle((c + d) + (g + h))
+
+        0 1 2 3 4 5 6 7    0 4 1 5 2 6 3 7
+        a b e f a b e f -> a a b b e e f f
+
+        // https://stackoverflow.com/questions/41073382/how-does-mm256-shuffle-ps-work
+        */
+        auto ab = _mm256_hadd_ps(s1, s2);
+        auto cd = _mm256_hadd_ps(s3, s4);
+        auto ef = _mm256_hadd_ps(s5, s6);
+        auto gh = _mm256_hadd_ps(s7, s8);
+
+        auto abef = _mm256_hadd_ps(ab, ef);
+        auto cdgh = _mm256_hadd_ps(cd, gh);
+
+        // constexpr int shuffle[] = { 0, 4, 1, 5, 2, 6, 3, 7 };
+        __m256i shuffle = _mm256_set_epi32(7, 3, 6, 2, 5, 1, 4, 0);
+        auto abef2 = _mm256_permutevar8x32_ps(abef, shuffle);
+        auto cdgh2 = _mm256_permutevar8x32_ps(cdgh, shuffle);
+
+        auto vy = _mm256_hadd_ps(abef2, cdgh2);
+        _mm256_storeu_ps(&y[row], vy);
+
+        for (; col < n; col++) {
+            y[row] += A[row*n+col] * x[col];
+            y[row+1] += A[(row+1)*n+col] * x[col];
+            y[row+2] += A[(row+2)*n+col] * x[col];
+            y[row+3] += A[(row+3)*n+col] * x[col];
+            y[row+4] += A[(row+4)*n+col] * x[col];
+            y[row+5] += A[(row+5)*n+col] * x[col];
+            y[row+6] += A[(row+6)*n+col] * x[col];
+            y[row+7] += A[(row+7)*n+col] * x[col];            
+        }
+    }
+    for (; row < m; row++) {
+        y[row] = 0.0f;
+        for (int j = 0; j < n; j++) {
+            y[row] += A[row * n + j] * x[j];
+        }
+    }
 }
 
+void matmul_2d_vec_4rows(const float* A, const float* x, float* y, int m, int n) {
+    int row = 0;
+    int rowend = m - m % 4;
+    for (; row < rowend; row += 4) {
+        __m128 s1 = _mm_setzero_ps();
+        __m128 s2 = _mm_setzero_ps();
+        __m128 s3 = _mm_setzero_ps();
+        __m128 s4 = _mm_setzero_ps();
 
+        int col = 0;
+        for (; col <= n - 4; col += 4) {
+            __m128 vx = _mm_loadu_ps(&x[col]);
+            auto A1 = _mm_loadu_ps(&A[row*n]+col);
+            auto A2 = _mm_loadu_ps(&A[(row+1)*n]+col);
+            auto A3 = _mm_loadu_ps(&A[(row+2)*n]+col);
+            auto A4 = _mm_loadu_ps(&A[(row+3)*n]+col);
+            s1 = _mm_fmadd_ps(A1, vx, s1);
+            s2 = _mm_fmadd_ps(A2, vx, s2);
+            s3 = _mm_fmadd_ps(A3, vx, s3);
+            s4 = _mm_fmadd_ps(A4, vx, s4);
+        }
 
-// for j := 0-7
-//     i := j * 32 (0, 32, 64, 96, 128, ...)
-//     m := id_t
+        auto ab = _mm_hadd_ps(s1, s2);
+        auto cd = _mm_hadd_ps(s3, s4);
+        auto abcd = _mm_hadd_ps(ab, cd);
+        _mm_storeu_ps(&y[row], abcd);
 
-//     addr := A + 
-
-//     dst[i+31:i] := MEM[base_addr + SignExtend(vindex[i+31:i])*scale]
-
-// dst[i+31:i] := MEM[base_addr + SignExtend(vindex[i+31:i])*scale]
-
-
-
-
-// _mm256_i32gather_ps(A[i], idx, 8);
+        for (; col < n; col++) {
+            y[row] += A[row*n+col] * x[col];
+            y[row+1] += A[(row+1)*n+col] * x[col];
+            y[row+2] += A[(row+2)*n+col] * x[col];
+            y[row+3] += A[(row+3)*n+col] * x[col];        
+        }
+    }
+    for (; row < m; row++) {
+        y[row] = 0.0f;
+        for (int j = 0; j < n; j++) {
+            y[row] += A[row * n + j] * x[j];
+        }
+    }
+}

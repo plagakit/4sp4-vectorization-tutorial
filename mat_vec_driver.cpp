@@ -37,11 +37,13 @@ void test_matmul(std::string name, MatmulFunc f, const std::vector<float>& A, co
     BENCHMARK(BM_##func##_)->Args({M, N})->Iterations(1)->Repetitions(RUNS);
 
 DEFINE_BENCHMARK(matmul_base)
-DEFINE_BENCHMARK(matmul_inner_unrolled)
+// DEFINE_BENCHMARK(matmul_inner_unrolled)
 DEFINE_BENCHMARK(matmul_inner_vec)
-DEFINE_BENCHMARK(matmul_inner_alt)
+// DEFINE_BENCHMARK(matmul_inner_alt)
 DEFINE_BENCHMARK(matmul_innervec_outerunrolled)
 DEFINE_BENCHMARK(matmul_vec_outer_vec)
+DEFINE_BENCHMARK(matmul_2d_vec)
+DEFINE_BENCHMARK(matmul_2d_vec_4rows)
 
 int main(int argc, char** argv) { 
     char arg0_default[] = "benchmark"; 
@@ -70,6 +72,8 @@ int main(int argc, char** argv) {
     test_matmul("inner alt", matmul_inner_alt, A, x, M, N, y);
     test_matmul("inner vec + outer unrolled", matmul_innervec_outerunrolled, A, x, M, N, y);
     test_matmul("outer vec", matmul_vec_outer_vec, A, x, M, N, y);
+    test_matmul("2d", matmul_2d_vec, A, x, M, N, y);
+    test_matmul("2d 4rows", matmul_2d_vec_4rows, A, x, M, N, y);
 
     ::benchmark::Initialize(&argc, argv); 
     if (::benchmark::ReportUnrecognizedArguments(argc, argv)) 
