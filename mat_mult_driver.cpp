@@ -44,6 +44,9 @@ void test_matmult(
     BENCHMARK(BM_##func##_)->Args({N})->Iterations(1)->Repetitions(RUNS);
 
 DEFINE_BENCHMARK(matmult_base)
+DEFINE_BENCHMARK(matmult_ikj)
+DEFINE_BENCHMARK(matmult_tiled)
+DEFINE_BENCHMARK(matmult_tiled_ikj)
 
 int main(int argc, char** argv) { 
     char arg0_default[] = "benchmark"; 
@@ -64,6 +67,9 @@ int main(int argc, char** argv) {
     matmult_base(A.data(), B.data(), C.data(), N);
 
     test_matmult("base", matmult_base, A, B, N, C);
+    test_matmult("ikj", matmult_ikj, A, B, N, C);
+    test_matmult("tiled", matmult_tiled, A, B, N, C);
+    test_matmult("tiled ikj", matmult_tiled_ikj, A, B, N, C);
 
     ::benchmark::Initialize(&argc, argv); 
     if (::benchmark::ReportUnrecognizedArguments(argc, argv)) 

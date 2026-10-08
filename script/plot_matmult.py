@@ -26,7 +26,7 @@ with open(JSON_PATH) as f:
 			stds[name] = b
 
 metrics = [
-	("FLOPs", 1e9, "Median FLOPs", "GFLOP/s"),
+	("FLOPs", 1e6, "Median FLOPs", "MFLOP/s"),
 	("cpu_time", 1e6, "Median CPU time", "CPU time (ms)"),
 ]
 
