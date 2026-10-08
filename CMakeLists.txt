@@ -53,3 +53,7 @@ target_link_libraries(vec_add_driver benchmark::benchmark)
 # Matrix-Vector Multiplication target
 add_executable(mat_vec_driver src/matrix_vec.cpp mat_vec_driver.cpp)
 target_link_libraries(mat_vec_driver benchmark::benchmark)
+
+
+add_executable(mat_mult_driver src/matrix_mult.cpp mat_mult_driver.cpp)
+target_link_libraries(mat_mult_driver benchmark::benchmark)
